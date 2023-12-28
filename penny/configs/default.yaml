@@ -1,0 +1,59 @@
+# note: freq count in epochs, set 0 to ignore
+
+task: "fit"
+
+fit:
+  wd: 0.1
+  lr: 0.00001
+  lr_schd: "warmup_cosine"
+
+  epochs: 10
+  optim: "adamw"
+  loss_fn: "CrossEntropyLoss"
+  val_freq: 0
+
+  ckpt_freq: 10
+
+  sp:
+    warm_up_epochs: 0
+    min_lr_ratio: 0.1            
+    freeze_backbone: False
+
+env:
+  gpus: 10
+  seed: 42
+  num_workers: 8
+  log_root: ./test_logs
+
+# only ImageFolder and csv_list are available
+dataset:
+
+  name: "in1k"
+  root: /data/imagenet_sets/in1k
+  cls_idx_remap: false
+
+  img_size: [224,224]
+  
+  train_batch_size: 128
+  val_batch_size: 128
+  test_batch_size: 128
+
+model:
+  name: tiny_vit
+  arch: tiny_vit_5m_224
+  backbone_weight: /data/sls_dump/weights/tinyvit/tiny_vit_5m_22kto1k_distill.pth
+
+  sp:
+    # 
+    freeze_backbone: True
+    head_lr_scaler: 1.0
+
+  # name: dinov2
+  # arch: vit_large
+  # patch_size: 14
+  # backbone_weights: /data/sls_dump/weights/dinov2/dinov2_vitl14_pretrain.pth
+
+  # head_cls_num: 1000
+  # head_use_n_blocks: 1
+  # head_use_avgpool: True
+  # head_weights: /data/sls_dump/weights/dinov2/dinov2_vitl14_linear_head.pth
