@@ -42,21 +42,24 @@ def setup_dataloader_from_cfg(cfg):
             num_workers=cfg.env.num_workers,
             pin_memory=True,
         )
+        if cfg.fit.val_freq > 0:
+            val_sampler = MyDistributedSampler(dataset.val_set,
+                shuffle=False, drop_last= False, padding=False,seed=cfg.env.seed
+            )
 
-        val_sampler = MyDistributedSampler(dataset.val_set,
-             shuffle=False, drop_last= False, padding=False,seed=cfg.env.seed
-        )
+            val_dataloader = DataLoader(
+                dataset=dataset.val_set,
+                sampler=val_sampler,
+                batch_size=cfg.dataset.val_batch_size,
+                num_workers=cfg.env.num_workers,
+                pin_memory=True
+            )
 
-        val_dataloader = DataLoader(
-            dataset=dataset.val_set,
-            sampler=val_sampler,
-            batch_size=cfg.dataset.val_batch_size,
-            num_workers=cfg.env.num_workers,
-            pin_memory=True
-        )
+            logger.info(f"setup train/val loaders with {len(dataset.train_set)}/{len(dataset.val_set)} samples")
+            return train_dataloader, val_dataloader
+        logger.info(f"setup train loaders with {len(dataset.train_set)} samples")
+        return train_dataloader
 
-        logger.info(f"setup train/val loaders with {len(dataset.train_set)}/{len(dataset.val_set)} samples")
-        return train_dataloader, val_dataloader
     elif cfg.task == "test":
         test_sampler = MyDistributedSampler(dataset.test_set,
              shuffle=False, drop_last= False, padding=False,seed=cfg.env.seed

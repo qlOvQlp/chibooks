@@ -4,6 +4,7 @@ from .loss import ClipLoss
 
 from typing import Any
 import sys
+import os
 
 import logging 
 logger = logging.getLogger("chibooks")
@@ -27,9 +28,7 @@ def build_model(*,arch_name="vit_base",patch_size=16,pretrained_weight=None):
         name = None
 
     if name in available_models():
-        if pretrained_weight is None:
-            model, transform = load(name,device="cpu",download_root="/data/sls_dump/weights/clip")
-        else:
+        if os.path.isdir(pretrained_weight):
             model, transform = load(name,device="cpu",download_root=pretrained_weight)
     else:
         logger.info(f"Model {name} not found; available models = vit_base 32/16 vit_large 14")
@@ -40,7 +39,7 @@ def build_model(*,arch_name="vit_base",patch_size=16,pretrained_weight=None):
 def build_clip_model_from_cfg(args):
     arch_name = args.model.arch
     patch_size = args.model.sp.patch_size
-    pretrained_weight = args.model.sp.weight_root
+    pretrained_weight = args.model.sp.clip_weight_root
     
     model,trans = build_model(arch_name=arch_name,
                                     patch_size=patch_size,

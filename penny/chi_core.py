@@ -1,10 +1,11 @@
 # This is a simple framework for datasets fitting in DDP manner 
 # author:   freya
 # date:     oct.1.2023
-
+import os
 import time
 import torch
 import logging
+import numpy as np
 from typing import Optional
 from chibooks.soul.utils import accuracy, accuracy_raw
 
@@ -44,6 +45,11 @@ class taskbook:
             # prepare inference dataloader 
             pass 
 
+    
+    ## test ddp environment
+    def debug(self,cfg):
+        pass
+
     ## user overload train interface
     ## define loss calculation
     def train_step(self,batch, aux_info:Optional[dict]=None):
@@ -68,6 +74,12 @@ class taskbook:
         y_hat = self.model(x)
         top1,top5 = accuracy(y_hat,y,topk=(1,5))
         return {"top1":top1, "top5":top5}
+    
+    def test_end(self,gathered_pred:dict,save_root=None):
+        for k,v in gathered_pred.items():
+            tmp_list = np.array(v)
+            np.save(os.path.join(save_root,f"{k}.npy"),tmp_list)
+        
 
     # optional
     def inference_step(self,batch,aux_info:Optional[dict]=None):

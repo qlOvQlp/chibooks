@@ -12,6 +12,8 @@ import chibooks.models as chi_models
 import chibooks.soul as chi_sol
 import json
 
+from collections import defaultdict
+
 from chibooks.penny import taskbook
 from sklearn.metrics import f1_score
 
@@ -20,6 +22,11 @@ def __main_worker(rank,cfg,task:taskbook):
     cfg.env.rank += rank
     chi_dist.init_distributed_mode(cfg.env)
     logger = chi_log.setup_logging(os.path.join(cfg.env.log_root,"logs"),name="chibooks")
+
+    if cfg.task == "debug":
+        logger.info("Warning: this mode was designed for ddp mode test, not suitable for model fit/test.")
+        task.debug(cfg)
+        return
 
     ## build model
     logger.info("set up model.")
@@ -33,7 +40,10 @@ def __main_worker(rank,cfg,task:taskbook):
         logger.info("Starting training from iteration {}".format(start_iter))
         ## setup ddp model and dataloader
         model = torch.nn.parallel.DistributedDataParallel(model,device_ids=[cfg.env.gpus[rank]])
-        train_loader,val_loader = chi_dat.setup_dataloader_from_cfg(cfg)
+        if cfg.fit.val_freq > 0:
+            train_loader,val_loader = chi_dat.setup_dataloader_from_cfg(cfg)
+        else:
+            train_loader = chi_dat.setup_dataloader_from_cfg(cfg)
         
         loss_fn = chi_sol.get_loss_fn(cfg)
 
@@ -47,9 +57,7 @@ def __main_worker(rank,cfg,task:taskbook):
         ## setup logger
         metric_log_file = os.path.join(cfg.env.log_root,"logs","training_metrics.log")
         metric_logger = chi_log.MetricLogger(delimiter="  ", output_file=metric_log_file)
-        val_metric_logger = chi_log.MetricLogger(delimiter="  ")
-
-
+        
         for epoch in range(cfg.fit.epochs):
 
             ## reset train_logger
@@ -91,6 +99,7 @@ def __main_worker(rank,cfg,task:taskbook):
                     _pred_ = []
                     _target_ = []
 
+                    val_metric_logger = chi_log.MetricLogger(delimiter="  ")
                     with torch.no_grad():
                         model.eval()
                         for tmp_batch in val_metric_logger.log_every(val_loader, 20, header="Validating"):
@@ -128,6 +137,9 @@ def __main_worker(rank,cfg,task:taskbook):
         
         _pred_ = []
         _target_ = []
+
+        _merge_dict = defaultdict(lambda :[])
+
         with torch.no_grad():
             model.eval()
             for tmp_batch in metric_logger.log_every(test_loader, 20, header="testing"):
@@ -136,20 +148,35 @@ def __main_worker(rank,cfg,task:taskbook):
                 target = tmp_batch[1].cuda(non_blocking=True)
                 batch = (inp,target) if len(tmp_batch)<3 else (inp,target,tmp_batch[2:])
                 test_res_dict = task.test_step(batch,aux_info=None)
-                metric_logger.meters["top1"].update(test_res_dict["top1"].item(),num=inp.size()[0])
-                metric_logger.meters["top5"].update(test_res_dict["top5"].item(),num=inp.size()[0])
 
-                _pred_.extend(test_res_dict["pred"])
-                _target_.extend(test_res_dict["target"])
+                if cfg.test.normal_test:
+                    metric_logger.meters["top1"].update(test_res_dict["top1"].item(),num=inp.size()[0])
+                    metric_logger.meters["top5"].update(test_res_dict["top5"].item(),num=inp.size()[0])
 
-            metric_logger.synchronize_between_processes()
-            res_all =  chi_dist.gather_dict_to_main({"pred":_pred_,"target":_target_},merge=True)
-            if chi_dist.is_main_process():
-                macro_f1 = f1_score(res_all["target"],res_all["pred"],labels=torch.tensor(res_all["target"]).unique(),average="macro")
-                logger.info(f"macro_f1: {macro_f1}")
+                    _pred_.extend(test_res_dict["pred"])
+                    _target_.extend(test_res_dict["target"])
+                else:
+                    for k,v in test_res_dict.items():
+                        _merge_dict[k].extend(v)
+            if cfg.test.normal_test:
+                metric_logger.synchronize_between_processes()
+                res_all =  chi_dist.gather_dict_to_main({"pred":_pred_,"target":_target_},merge=True)
+                if chi_dist.is_main_process():
+                    macro_f1 = f1_score(res_all["target"],res_all["pred"],labels=torch.tensor(res_all["target"]).unique(),average="macro")
+                    logger.info(f"macro_f1: {macro_f1}")
 
-            logger.info(f"total: {metric_logger.meters['top1'].total}, count:{metric_logger.meters['top1'].count}")
-            logger.info(f"top1: {metric_logger.meters['top1'].global_avg:.2f}%, top5: {metric_logger.meters['top5'].global_avg:.2f}%")
+                logger.info(f"total: {metric_logger.meters['top1'].total}, count:{metric_logger.meters['top1'].count}")
+                logger.info(f"top1: {metric_logger.meters['top1'].global_avg:.2f}%, top5: {metric_logger.meters['top5'].global_avg:.2f}%")
+
+            else:
+                logger.info(f"normal_test not enabled, save inference dict ...")
+                _merge_dict = dict(_merge_dict)
+                res_dict = chi_dist.gather_dict_to_main(_merge_dict,merge=True)
+                if chi_dist.is_main_process(): 
+                    task.test_end(res_dict, os.path.join(cfg.env.log_root,"logs"))
+                logger.info(f"test done ...")
+
+                
 
     # inference on single GPU for test
     # inference is designed for small sizedata evaluate and get res not for acc or F1-score

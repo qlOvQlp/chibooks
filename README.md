@@ -1,6 +1,3 @@
-# chibooks
-# CHIBOOKS 使用说明
-
 ## CHIBOOKS 是什么
 chibooks 是一个简易视觉分类模型单机多卡训练框架，仅需简单的几步即可开展模型对数据的拟合，快来试试吧😘
 
@@ -14,7 +11,7 @@ chibooks 是一个简易视觉分类模型单机多卡训练框架，仅需简�
 |test_step|在有标签的数据上进行评估|(batch, batch_idx)|loss, meta|
 |inference_step|在用户输入的无标签数据上进行评估|(batch, batch_idx)|meta|
 
-同时chibooks预定义了一些基础模型🤗，可以直接调用：
+同时chibooks预定义了一些模型🤗，可以直接调用：
 |模型名称|链接|预定义权重|状态|
 |:---:|:---:|:---:|:---:|
 |vit||dinov2|✅|
