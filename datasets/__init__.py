@@ -1,4 +1,4 @@
-from .in1kset import get_in1k_from_cfg
+from .in1k.in1kset import get_in1k_from_cfg
 from .terra_inc.terra_inc import get_terrainc_from_cfg
 from .wilds_iwildcam.aux_wilds_iwildcam import get_wilds_iwildcam_from_cfg
 from .common_inference.ext_imagefolder import get_ext_imagefolder_from_cfg

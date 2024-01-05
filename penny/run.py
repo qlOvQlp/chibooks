@@ -40,6 +40,7 @@ def __main_worker(rank,cfg,task:taskbook):
         logger.info("Starting training from iteration {}".format(start_iter))
         ## setup ddp model and dataloader
         model = torch.nn.parallel.DistributedDataParallel(model,device_ids=[cfg.env.gpus[rank]])
+        model.eval()
         if cfg.fit.val_freq > 0:
             train_loader,val_loader = chi_dat.setup_dataloader_from_cfg(cfg)
         else:

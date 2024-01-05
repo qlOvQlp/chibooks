@@ -438,6 +438,19 @@ class CLIP(nn.Module):
 
         # shape = [global_batch_size, global_batch_size]
         return logits_per_image, logits_per_text
+    
+    def forward_ftext_ftext(self,ftext_1,ftext_2):
+        ftext_1 = ftext_1 / ftext_1.norm(dim=1, keepdim=True)
+        ftext_2 = ftext_2 / ftext_2.norm(dim=1, keepdim=True)
+
+        # cosine similarity as logits
+        logit_scale = self.logit_scale.exp()
+        logits_per_ftext_1 = logit_scale * ftext_1 @ ftext_2.t()
+        logits_per_ftext_2 = logits_per_ftext_1.t()
+
+        return logits_per_ftext_1, logits_per_ftext_2
+        
+
 
 
 def convert_weights(model: nn.Module):
